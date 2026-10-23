@@ -1,5 +1,7 @@
 # SpotSelector
 
+<img width="479" height="346" alt="CleanShot 2026-10-23 at 12 49 12" src="https://github.com/user-attachments/assets/46f0a834-2918-47d2-b7da-0e78fc26e393" />
+
 **Change Spotify's sound quality from your Mac's menu bar, in one click.**
 
 ## What it does

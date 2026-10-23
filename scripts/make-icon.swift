@@ -1,4 +1,5 @@
-// Renders Resources/AppIcon.icns: a dark rounded tile with a green waveform.
+// Renders Resources/AppIcon.icns (a dark rounded tile with a green waveform)
+// and Resources/AppIcon-preview.png for the README.
 // Run: swift scripts/make-icon.swift
 import AppKit
 
@@ -50,3 +51,8 @@ task.arguments = ["-c", "icns", iconset.path, "-o", "Resources/AppIcon.icns"]
 task.launch()
 task.waitUntilExit()
 print(task.terminationStatus == 0 ? "Wrote Resources/AppIcon.icns" : "iconutil failed")
+
+let preview = URL(fileURLWithPath: "Resources/AppIcon-preview.png")
+try? FileManager.default.removeItem(at: preview)
+try! FileManager.default.copyItem(at: iconset.appendingPathComponent("icon_512x512.png"), to: preview)
+print("Wrote Resources/AppIcon-preview.png")

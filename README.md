@@ -1,8 +1,10 @@
+<p align="center"><img src="Resources/AppIcon-preview.png" width="160" alt="SpotSelector icon"></p>
+
 # SpotSelector
 
-<img width="727" height="450" alt="CleanShot 2026-10-23 at 13 02 37" src="https://github.com/user-attachments/assets/4d8666eb-3951-4bcd-89d6-c8bb5e13ee6e" />
-
 **Change Spotify's sound quality from your Mac's menu bar, in one click.**
+
+<img width="100%" alt="SpotSelector's menu open in the macOS menu bar, listing Spotify's quality options with Lossless ticked" src="https://github.com/user-attachments/assets/4d8666eb-3951-4bcd-89d6-c8bb5e13ee6e" />
 
 ## What it does
 
@@ -90,7 +92,7 @@ Requires Xcode (or its command line tools) and macOS 14+.
 swift test
 ```
 
-`scripts/make-icon.swift` regenerates `Resources/AppIcon.icns`.
+`scripts/make-icon.swift` regenerates `Resources/AppIcon.icns` and the README icon `Resources/AppIcon-preview.png`.
 
 The first run from `/Applications` registers SpotSelector as a login item (via `SMAppService`); runs from the build folder don't, so the login item never points at a throwaway copy.
 

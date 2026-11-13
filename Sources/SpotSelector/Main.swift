@@ -16,6 +16,7 @@ enum Main {
 /// Headless use, e.g. from scripts or Shortcuts:
 ///   SpotSelector --get
 ///   SpotSelector --set lossless [--no-resume]
+///   SpotSelector --automation-status
 enum CommandLineMode {
     static func run(command: String, arguments: [String]) -> Never {
         switch command {
@@ -43,8 +44,22 @@ enum CommandLineMode {
             }
             RunLoop.main.run()
             exit(0)
+        case "--automation-status":
+            // Whether macOS lets this app control Spotify (needed to resume
+            // playback). Never shows the consent prompt.
+            guard let app = NSRunningApplication
+                .runningApplications(withBundleIdentifier: SpotifyController.bundleID).first else {
+                fail("Spotify isn't running; open it and try again.")
+            }
+            switch SpotifyController.automationStatus(pid: app.processIdentifier, askIfNeeded: false) {
+            case .allowed: print("allowed")
+            case .notAsked: print("not-asked")
+            case .denied: print("denied")
+            case .unknown(let code): print("unknown (\(code))")
+            }
+            exit(0)
         default:
-            fail("Usage: SpotSelector [--get | --set <quality> [--no-resume]]")
+            fail("Usage: SpotSelector [--get | --set <quality> [--no-resume] | --automation-status]")
         }
     }
 

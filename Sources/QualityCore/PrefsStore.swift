@@ -51,8 +51,11 @@ public struct PrefsStore: Sendable {
         if let text = try? String(contentsOf: globalPrefs, encoding: .utf8),
            let raw = PrefsDocument(text: text).value(forKey: "autologin.canonical_username") {
             let username = raw.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            // The name becomes a path component; never let it climb out of
+            // the Users folder.
+            let isPlainName = !username.isEmpty && !username.contains("/") && !username.contains("\0")
             let candidate = usersDirectory.appendingPathComponent("\(username)-user/prefs")
-            if !username.isEmpty, fm.fileExists(atPath: candidate.path) {
+            if isPlainName, fm.fileExists(atPath: candidate.path) {
                 return candidate
             }
         }
@@ -99,10 +102,13 @@ public struct PrefsStore: Sendable {
         var document = try load(from: url)
         guard document.quality != nil else { throw PrefsError.unrecognisedValue }
 
+        // The prefs file lists devices on the user's network; keep the copy private.
         try fm.createDirectory(at: backupDirectory, withIntermediateDirectories: true)
+        try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: backupDirectory.path)
         let backup = backupDirectory.appendingPathComponent("prefs.backup")
         try? fm.removeItem(at: backup)
         try fm.copyItem(at: url, to: backup)
+        try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: backup.path)
 
         let permissions = (try? fm.attributesOfItem(atPath: url.path))?[.posixPermissions]
 

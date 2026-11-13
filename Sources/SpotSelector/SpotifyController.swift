@@ -18,6 +18,11 @@ enum SwitchError: LocalizedError {
     }
 }
 
+enum AutomationStatus: Equatable {
+    case allowed, notAsked, denied
+    case unknown(OSStatus)
+}
+
 struct PlaybackSnapshot {
     var isPlaying: Bool
     var trackID: String
@@ -112,27 +117,43 @@ struct SpotifyController {
     private static func automationAllowed(for app: NSRunningApplication) async -> Bool {
         let pid = app.processIdentifier
         return await Task.detached {
-            let target = NSAppleEventDescriptor(processIdentifier: pid)
-            let status = AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, true)
-            return status == noErr
+            automationStatus(pid: pid, askIfNeeded: true) == .allowed
         }.value
     }
 
-    private func run(_ source: String) -> NSAppleEventDescriptor? {
+    nonisolated static func automationStatus(pid: pid_t, askIfNeeded: Bool) -> AutomationStatus {
+        let target = NSAppleEventDescriptor(processIdentifier: pid)
+        let status = AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, askIfNeeded)
+        switch status {
+        case noErr: return .allowed
+        case OSStatus(errAEEventWouldRequireUserConsent): return .notAsked
+        case OSStatus(errAEEventNotPermitted): return .denied
+        default: return .unknown(status)
+        }
+    }
+
+    /// Runs `body` inside a `tell` aimed at Spotify. The timeout stops a
+    /// hung or still-launching Spotify from freezing the menu bar.
+    private func tellSpotify(_ body: String) -> NSAppleEventDescriptor? {
         // Addressing Spotify while it's closed would launch it.
         guard isRunning else { return nil }
+        let source = """
+        with timeout of 5 seconds
+            tell application id "\(Self.bundleID)"
+                \(body)
+            end tell
+        end timeout
+        """
         var error: NSDictionary?
         let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
         return error == nil ? result : nil
     }
 
     private func playbackSnapshot() -> PlaybackSnapshot? {
-        let result = run("""
-        tell application id "\(Self.bundleID)"
-            set theState to player state as string
-            if theState is "stopped" then return {theState, "", 0}
-            return {theState, id of current track, player position}
-        end tell
+        let result = tellSpotify("""
+        set theState to player state as string
+        if theState is "stopped" then return {theState, "", 0}
+        return {theState, id of current track, player position}
         """)
         guard let result, result.numberOfItems == 3,
               let state = result.atIndex(1)?.stringValue,
@@ -166,23 +187,20 @@ struct SpotifyController {
 
         let position = max(0, snapshot.position - 1)
         if restored != nil {
-            _ = run("""
-            tell application id "\(Self.bundleID)"
-                set player position to \(Self.scriptNumber(position))
-                play
-            end tell
+            _ = tellSpotify("""
+            set player position to \(Self.scriptNumber(position))
+            play
             """)
+        } else if SpotifyURI.isValid(snapshot.trackID) {
+            _ = tellSpotify("play track \(AppleScriptLiteral.quoted(snapshot.trackID))")
         } else {
-            _ = run("""
-            tell application id "\(Self.bundleID)" to play track "\(snapshot.trackID)"
-            """)
+            _ = tellSpotify("play")
+            return
         }
 
         try? await Task.sleep(for: .milliseconds(900))
         if let now = playbackSnapshot(), now.trackID == snapshot.trackID, abs(now.position - position) > 4 {
-            _ = run("""
-            tell application id "\(Self.bundleID)" to set player position to \(Self.scriptNumber(position))
-            """)
+            _ = tellSpotify("set player position to \(Self.scriptNumber(position))")
         }
     }
 

@@ -99,6 +99,26 @@ final class PrefsStoreTests: XCTestCase {
         XCTAssertEqual(try store.currentQuality(), .normal)
     }
 
+    func testIgnoresUsernameThatEscapesUsersFolder() throws {
+        _ = try makeUser("alice", prefs: "audio.play_bitrate_non_metered_enumeration=2\n")
+        let outside = root.appendingPathComponent("Spotify/evil-user")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try "audio.play_bitrate_non_metered_enumeration=4\n".write(
+            to: outside.appendingPathComponent("prefs"), atomically: true, encoding: .utf8)
+        try "autologin.canonical_username=\"../evil\"\n".write(
+            to: store.spotifyDirectory.appendingPathComponent("prefs"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(try store.userPrefsURL().deletingLastPathComponent().lastPathComponent, "alice-user")
+    }
+
+    func testBackupIsPrivate() throws {
+        _ = try makeUser("alice", prefs: "audio.play_bitrate_non_metered_enumeration=5\n")
+        try store.write(.high)
+        let fm = FileManager.default
+        let file = store.backupDirectory.appendingPathComponent("prefs.backup").path
+        XCTAssertEqual(try fm.attributesOfItem(atPath: file)[.posixPermissions] as? Int, 0o600)
+        XCTAssertEqual(try fm.attributesOfItem(atPath: store.backupDirectory.path)[.posixPermissions] as? Int, 0o700)
+    }
+
     func testWriteUpdatesFileAndKeepsBackup() throws {
         let original = "x=1\naudio.play_bitrate_non_metered_enumeration=5\naudio.play_bitrate_enumeration=5\n"
         let url = try makeUser("alice", prefs: original)
@@ -116,5 +136,29 @@ final class PrefsStoreTests: XCTestCase {
         let url = try makeUser("alice", prefs: original)
         XCTAssertThrowsError(try store.write(.high))
         XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), original)
+    }
+}
+
+final class AppleScriptSafetyTests: XCTestCase {
+    func testAcceptsRealSpotifyIDs() {
+        XCTAssertTrue(SpotifyURI.isValid("spotify:track:4uLU6hMCjMI75M1A2tKUQC"))
+        XCTAssertTrue(SpotifyURI.isValid("spotify:episode:512ojhOuo1ktJprKbVcKyQ"))
+        XCTAssertTrue(SpotifyURI.isValid("spotify:local:Daft+Punk:Discovery:One+More+Time:320"))
+        XCTAssertTrue(SpotifyURI.isValid("spotify:local:AC%2FDC:Back+in+Black:Hells+Bells+%28Live%29:312"))
+    }
+
+    func testRejectsIDsThatCouldBreakOutOfAString() {
+        XCTAssertFalse(SpotifyURI.isValid("spotify:local:a\"\ndo shell script \"id\""))
+        XCTAssertFalse(SpotifyURI.isValid("spotify:local:a\\"))
+        XCTAssertFalse(SpotifyURI.isValid("spotify:local:a b"))
+        XCTAssertFalse(SpotifyURI.isValid("spotify:local:a\nb"))
+        XCTAssertFalse(SpotifyURI.isValid("file:///etc/passwd"))
+        XCTAssertFalse(SpotifyURI.isValid(""))
+        XCTAssertFalse(SpotifyURI.isValid("spotify:" + String(repeating: "a", count: 2000)))
+    }
+
+    func testQuotedEscapesQuotesAndBackslashes() {
+        XCTAssertEqual(AppleScriptLiteral.quoted("spotify:track:abc"), "\"spotify:track:abc\"")
+        XCTAssertEqual(AppleScriptLiteral.quoted("a\"b\\c"), "\"a\\\"b\\\\c\"")
     }
 }

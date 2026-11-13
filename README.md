@@ -77,6 +77,21 @@ Spotify reads this file at launch and rewrites it when it quits, so editing it w
 
 These prefs keys are undocumented. A Spotify update could change them; the app will then show an error rather than guess.
 
+### Security and privacy
+
+- SpotSelector makes no network connections and collects nothing.
+- It reads and writes one file (Spotify's prefs, above) and keeps one private backup of it.
+- It talks to one other app, Spotify, and only to read what's playing and press play again. Track IDs read back from Spotify are validated and escaped before they're used in a script.
+- Release builds use Apple's hardened runtime, so other processes can't inject code into the app to borrow its permission to control Spotify.
+
+To check a download matches the published build, compare its SHA-256 with the one in the release notes:
+
+```bash
+shasum -a 256 ~/Downloads/SpotSelector.zip
+```
+
+Found a security problem? Please [open an issue](https://github.com/andresurena/SpotSelector/issues) with as little exploit detail as possible and ask for a private contact.
+
 ### Signing
 
 Release builds are signed with an Apple Development certificate but not notarised, which is why Gatekeeper asks you to approve the app the first time. Building from source avoids the prompt entirely.
@@ -88,7 +103,7 @@ Requires Xcode (or its command line tools) and macOS 14+.
 ```bash
 ./scripts/build-app.sh             # builds build/SpotSelector.app (universal)
 ./scripts/build-app.sh --install   # also copies it to /Applications and launches it
-./scripts/package-release.sh       # builds and zips build/SpotSelector.zip
+./scripts/package-release.sh       # builds, zips build/SpotSelector.zip, prints its SHA-256
 swift test
 ```
 
@@ -104,13 +119,16 @@ The same binary works headless, for scripts, Shortcuts or Raycast:
 "/Applications/SpotSelector.app/Contents/MacOS/SpotSelector" --get
 "/Applications/SpotSelector.app/Contents/MacOS/SpotSelector" --set very-high
 "/Applications/SpotSelector.app/Contents/MacOS/SpotSelector" --set lossless --no-resume
+"/Applications/SpotSelector.app/Contents/MacOS/SpotSelector" --automation-status
 ```
+
+`--automation-status` reports whether macOS allows SpotSelector to control Spotify (`allowed`, `denied` or `not-asked`), which is what auto-resume depends on.
 
 ### Project layout
 
 - `Sources/QualityCore`: prefs parsing and safe file writing (unit tested)
 - `Sources/SpotSelector`: menu bar UI, Spotify quit/relaunch/resume, command-line mode
-- `Resources/Info.plist`: bundle metadata (`LSUIElement` hides the Dock icon)
+- `Resources/`: `Info.plist` (`LSUIElement` hides the Dock icon), entitlements and icon
 - `scripts/`: build, packaging and icon generation
 
 ## Licence

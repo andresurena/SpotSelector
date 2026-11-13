@@ -16,14 +16,24 @@ BIN="$(swift build "${BUILD_FLAGS[@]}" --show-bin-path)/SpotSelector"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp "$BIN" "$APP/Contents/MacOS/SpotSelector"
+# Drop debug symbols: they embed the build machine's folder paths.
+strip -Sx "$APP/Contents/MacOS/SpotSelector"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 mkdir -p "$APP/Contents/Resources"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # A real signing identity keeps the "control Spotify" permission across
 # rebuilds; ad-hoc signing works but macOS re-asks after every build.
-IDENTITY="${CODESIGN_IDENTITY:-$(security find-identity -v -p codesigning | awk -F'"' '/Apple Development|Developer ID Application/ {print $2; exit}')}"
-codesign --force --sign "${IDENTITY:--}" "$APP"
+# Developer ID is preferred when present (it's the one that can be notarised).
+IDENTITIES="$(security find-identity -v -p codesigning)"
+IDENTITY="${CODESIGN_IDENTITY:-$(awk -F'"' '/Developer ID Application/ {print $2; exit}' <<<"$IDENTITIES")}"
+IDENTITY="${IDENTITY:-$(awk -F'"' '/Apple Development/ {print $2; exit}' <<<"$IDENTITIES")}"
+
+# Hardened runtime stops other processes injecting code into the app to
+# borrow its permission to control Spotify.
+xattr -cr "$APP"
+codesign --force --options runtime --entitlements Resources/SpotSelector.entitlements \
+    --sign "${IDENTITY:--}" "$APP"
 
 echo "Built $APP (signed with: ${IDENTITY:-ad-hoc})"
 

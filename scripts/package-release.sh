@@ -7,6 +7,7 @@ cd "$(dirname "$0")/.."
 
 ./scripts/build-app.sh
 rm -f build/SpotSelector.zip
-ditto -c -k --keepParent build/SpotSelector.app build/SpotSelector.zip
+ditto -c -k --norsrc --noextattr --keepParent build/SpotSelector.app build/SpotSelector.zip
 codesign --verify --strict build/SpotSelector.app
 echo "Packaged build/SpotSelector.zip ($(du -h build/SpotSelector.zip | cut -f1))"
+echo "SHA-256: $(shasum -a 256 build/SpotSelector.zip | cut -d' ' -f1)"
